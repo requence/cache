@@ -1,0 +1,62 @@
+---
+title: CacheBackend
+description: API reference for the CacheBackend interface.
+---
+
+## Import
+
+```typescript
+import type { CacheBackend, CacheBackendOptions } from '@requence/cache'
+```
+
+## Interface
+
+```typescript
+interface CacheBackend {
+  get(key: string, args: string): Promise<any>
+  getTags(key: string, args: string): Promise<string[]>
+  set(key: string, args: string, collectionResult: BackendCollectionResult): Promise<void>
+  invalidateArgs(key: string, args: string): Promise<void>
+  invalidateKey(key: string): Promise<void>
+  invalidateTag(tag: string): Promise<void>
+  reset(): Promise<void>
+}
+```
+
+## Methods
+
+### `get(key, args)`
+
+Retrieve a cached value. Should throw if the key is not found.
+
+### `getTags(key, args)`
+
+Return the tags associated with a cached entry.
+
+### `set(key, args, collectionResult)`
+
+Store a result. The `collectionResult` is a `Promise` that resolves to the computed value, tags, and a `shouldCache` flag.
+
+### `invalidateArgs(key, args)`
+
+Remove a specific cached entry.
+
+### `invalidateKey(key)`
+
+Remove all entries for a given function key.
+
+### `invalidateTag(tag)`
+
+Remove all entries associated with a tag.
+
+### `reset()`
+
+Clear all data from the backend.
+
+## Built-in Implementations
+
+| Backend | Module | Description |
+|---------|--------|-------------|
+| `MemoryBackend` | `@requence/cache` | In-memory Map-based storage with TTL and LRU eviction |
+| `RedisBackend` | `@requence/cache/redis` | Redis-backed storage with Pub/Sub coordination |
+| `CombinedBackend` | (internal) | Wraps multiple backends as a single read-through chain |

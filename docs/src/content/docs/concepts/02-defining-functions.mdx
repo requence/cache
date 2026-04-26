@@ -1,0 +1,95 @@
+---
+title: Defining Functions
+description: Learn how to register cached functions with the fluent API.
+---
+
+## The `.define()` API
+
+Every cached function is registered through the fluent `.define()` method. The cache automatically hashes function arguments to generate unique cache keys.
+
+```typescript
+import { createCache } from '@requence/cache'
+
+const cache = createCache()
+  .define('getUser', async (id: string) => {
+    return db.users.findById(id)
+  })
+  .define('getProject', async (id: string) => {
+    return db.projects.findById(id)
+  })
+```
+
+## Calling Cached Functions
+
+Once defined, cached functions are available as properties on the cache object:
+
+```typescript
+const user = await cache.getUser('abc')
+const project = await cache.getProject('xyz')
+```
+
+## Post-Processing
+
+You can add a post-processor to transform cached return values without re-executing the underlying function:
+
+```typescript
+const cache = createCache().define(
+  'getRawData',
+  async (id: string) => db.getData(id),
+  (data) => ({ ...data, processedAt: new Date() })
+)
+```
+
+The post-processor runs on every call (both cache hits and misses), but the underlying function only runs on cache misses.
+
+## Self-Referencing
+
+Cached functions can call other functions on the same cache via `this`:
+
+```typescript
+const cache = createCache()
+  .define('getBase', async (num: number) => num * 2)
+  .define('getDerived', async function (num: number) {
+    return this.getBase(num + 1)
+  })
+```
+
+Tags and invalidation cascade automatically through nested calls.
+
+## Scopes
+
+Scopes isolate cache entries. Use `.withScope()` to namespace all operations:
+
+```typescript
+// Default (global) scope
+await cache.getUser('abc')
+
+// Branch-specific scope
+await cache.withScope('branch-123').getUser('abc')
+
+// These are separate cache entries
+```
+
+## Disabling Caching
+
+Use `withCachingDisabled()` to bypass the cache entirely:
+
+```typescript
+import { withCachingDisabled } from '@requence/cache'
+
+const freshResult = await withCachingDisabled(() => cache.getUser('abc'))
+```
+
+Or use `dontCache()` inside a function to prevent the current result from being cached:
+
+```typescript
+import { createCache, dontCache } from '@requence/cache'
+
+const cache = createCache().define('getUser', async (id: string) => {
+  const user = await db.users.findById(id)
+  if (!user) {
+    dontCache() // Don't cache 404 results
+  }
+  return user
+})
+```

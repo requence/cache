@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  docs:
+    image: ghcr.io/requence/cache/docs:latest
+    ports:
+      - "3101:80"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,50 @@
+---
+title: Cache
+description: Tag-based function caching with pluggable backends for TypeScript.
+template: splash
+hero:
+  tagline: Fluent, type-safe function caching with tag-based invalidation — memory, Redis, or both.
+  actions:
+    - text: Get Started
+      link: /concepts/01-introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/requence/cache
+      icon: external
+      variant: minimal
+---
+
+import LucideIcon from '../../components/LucideIcon.astro';
+
+## Why @requence/cache?
+
+<div class="card-grid">
+  <article class="feature-card">
+    <div class="feature-icon">
+      <LucideIcon name="Zap" size={22} />
+    </div>
+    <h3>Fluent API</h3>
+    <p>Define cached functions with chainable `.define()` calls — fully type-safe with automatic inference.</p>
+  </article>
+  <article class="feature-card">
+    <div class="feature-icon">
+      <LucideIcon name="Tags" size={22} />
+    </div>
+    <h3>Tag-Based Invalidation</h3>
+    <p>Group cached results with tags and invalidate entire categories at once — cascading through nested calls.</p>
+  </article>
+  <article class="feature-card">
+    <div class="feature-icon">
+      <LucideIcon name="Layers" size={22} />
+    </div>
+    <h3>Pluggable Backends</h3>
+    <p>In-memory by default, Redis for distributed caching, or combine both for multi-layer performance.</p>
+  </article>
+  <article class="feature-card">
+    <div class="feature-icon">
+      <LucideIcon name="Shield" size={22} />
+    </div>
+    <h3>Smart Deduplication</h3>
+    <p>Concurrent calls to the same function are automatically coalesced — no thundering herd problem.</p>
+  </article>
+</div>

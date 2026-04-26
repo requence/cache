@@ -1,0 +1,55 @@
+---
+title: Introduction
+description: What is @requence/cache and why use it.
+---
+
+## What is @requence/cache?
+
+`@requence/cache` is a **tag-based function caching library** for TypeScript that provides a fluent API for defining cached functions, automatic cascade invalidation, and pluggable storage backends.
+
+Unlike simple key-value caches, `@requence/cache` operates at the function level — you define which functions should be cached, and the library handles argument hashing, tag propagation, deduplication, TTL, and LRU eviction automatically.
+
+## Core Concepts
+
+- **Cache** — A container created with `createCache()` that holds one or more cached function definitions.
+- **Define** — Use `.define()` to register functions whose return values should be cached.
+- **Tags** — Attach tags to cached results with `addCacheTag()` for group-based invalidation.
+- **Scopes** — Isolate cache entries per tenant, branch, or any other grouping with `.withScope()`.
+- **Backends** — Plug in different storage engines (memory, Redis, or a combination of both).
+
+## Quick Example
+
+```typescript
+import { createCache, addCacheTag } from '@requence/cache'
+
+const cache = createCache()
+  .define('getUser', async (id: string) => {
+    addCacheTag(['user', id])
+    return db.users.findById(id)
+  })
+  .define('listUsers', async () => {
+    addCacheTag('user')
+    return db.users.findAll()
+  })
+
+// First call executes the function
+await cache.getUser('abc')
+
+// Second call returns from cache
+await cache.getUser('abc')
+
+// Invalidate by tag — clears both getUser and listUsers
+await cache.invalidateTag('user')
+```
+
+## Installation
+
+```bash
+bun add @requence/cache
+```
+
+For Redis backend support:
+
+```bash
+bun add ioredis superjson
+```

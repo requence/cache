@@ -1,0 +1,91 @@
+---
+title: Invalidation
+description: Learn how to invalidate cached results by key, argument, or tag.
+---
+
+## Invalidation Strategies
+
+`@requence/cache` provides multiple ways to invalidate cached results, from surgical precision to broad sweeps.
+
+## By Specific Arguments
+
+Invalidate a single cached result by its exact arguments:
+
+```typescript
+await cache.invalidate('getUser', 'abc')
+```
+
+## By Function Key
+
+Invalidate all cached results for a function, regardless of arguments:
+
+```typescript
+await cache.invalidateAll('getUser')
+```
+
+## By Tag
+
+Invalidate all cached results that were tagged with a specific tag:
+
+```typescript
+import { addCacheTag } from '@requence/cache'
+
+const cache = createCache()
+  .define('getUser', async (id: string) => {
+    addCacheTag('user')
+    addCacheTag(['user', id])
+    return db.users.findById(id)
+  })
+
+// Invalidate all user-related caches
+await cache.invalidateTag('user')
+
+// Or invalidate a specific user
+await cache.invalidateTag(['user', 'abc'])
+```
+
+## Cascade Invalidation
+
+When cached functions call other cached functions, tag invalidation cascades automatically:
+
+```typescript
+const cache = createCache()
+  .define('getBase', async (num: number) => {
+    addCacheTag('numbers')
+    return num * 2
+  })
+  .define('getDerived', async function (num: number) {
+    return this.getBase(num + 1)
+  })
+
+// This invalidates both getDerived AND getBase
+await cache.invalidateTag('numbers')
+```
+
+## Scoped Invalidation
+
+Invalidation respects scopes — only the targeted scope is affected:
+
+```typescript
+// Only clears the branch-123 scope
+await cache.withScope('branch-123').invalidateAll('getUser')
+
+// Clears all entries in the branch-123 scope
+await cache.withScope('branch-123').clear()
+```
+
+## Full Reset
+
+Clear everything from the cache:
+
+```typescript
+await cache.reset()
+```
+
+Or reset all cache instances in the process:
+
+```typescript
+import { resetAllCaches } from '@requence/cache'
+
+await resetAllCaches()
+```

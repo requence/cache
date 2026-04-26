@@ -1,0 +1,87 @@
+---
+title: Backends
+description: Pluggable storage backends — memory, Redis, or combined.
+---
+
+## Storage Backends
+
+`@requence/cache` uses a pluggable backend architecture. Every cache instance gets an in-memory backend by default, but you can add Redis for distributed caching or combine both for multi-layer performance.
+
+## Memory Backend (Default)
+
+The default backend stores everything in-process using plain `Map` objects. No configuration needed:
+
+```typescript
+import { createCache } from '@requence/cache'
+
+const cache = createCache({
+  memoryTTL: 60_000,   // Entries expire after 60s
+  memorySize: 100,      // Max 100 entries per function
+})
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `memoryTTL` | `0` (infinite) | Time-to-live in milliseconds |
+| `memorySize` | `0` (infinite) | Max entries per function (LRU eviction) |
+
+## Redis Backend
+
+For distributed caching across multiple processes or servers:
+
+```typescript
+import { createCache } from '@requence/cache'
+import createRedisBackend from '@requence/cache/redis'
+
+const cache = createCache({
+  backend: createRedisBackend({
+    url: 'redis://localhost:6379',
+    prefix: 'myapp',
+    ttl: 300_000,
+    database: 0,
+  }),
+})
+```
+
+The Redis backend uses `superjson` for serialization, `ioredis` for connectivity, and Redis Pub/Sub for cross-process lock coordination.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `url` | `localhost:6379` | Redis connection URL |
+| `prefix` | `'cache'` | Key prefix for all cache entries |
+| `ttl` | `0` (infinite) | Time-to-live in milliseconds |
+| `lockTTL` | `10000` | Max time to wait for a pending result |
+| `database` | `0` | Redis database number |
+
+## Combined Backend
+
+When you provide a `backend` option, the cache automatically combines it with the built-in memory backend — memory is always the first layer:
+
+```typescript
+const cache = createCache({
+  memoryTTL: 5_000,    // Short in-memory TTL
+  backend: createRedisBackend({
+    ttl: 300_000,       // Longer Redis TTL
+  }),
+})
+```
+
+Cache reads check memory first, then Redis. Writes go to both layers simultaneously.
+
+## Custom Backends
+
+Implement the `CacheBackend` interface to create your own backend:
+
+```typescript
+import type { CacheBackend } from '@requence/cache'
+
+class MyBackend implements CacheBackend {
+  async get(key: string, args: string) { /* ... */ }
+  async getTags(key: string, args: string) { /* ... */ }
+  async set(key: string, args: string, collectionResult) { /* ... */ }
+  async invalidateArgs(key: string, args: string) { /* ... */ }
+  async invalidateKey(key: string) { /* ... */ }
+  async invalidateTag(tag: string) { /* ... */ }
+  async reset() { /* ... */ }
+}
+```

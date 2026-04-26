@@ -1,0 +1,79 @@
+---
+title: createCache
+description: API reference for the createCache factory function.
+---
+
+## Import
+
+```typescript
+import { createCache } from '@requence/cache'
+```
+
+## Signature
+
+```typescript
+function createCache(options?: CacheOptions): Cache
+```
+
+## Options
+
+```typescript
+interface CacheOptions {
+  memoryTTL?: number        // Max time (ms) to hold results in memory. Default: 0 (infinite)
+  memorySize?: number       // Max results per function in memory. Default: 0 (infinite)
+  backend?: CacheBackend | CacheBackend[]  // External backend(s)
+  defaultScope?: string | null | (() => string | null | void)  // Default scope
+}
+```
+
+## Return Type
+
+The `Cache` object is a `Proxy` that combines the management API with direct function access:
+
+### `.define(key, fn, postProcessor?)`
+
+Register a cached function. Returns the cache for chaining.
+
+```typescript
+const cache = createCache()
+  .define('getUser', async (id: string) => db.users.findById(id))
+  .define('getProject', async (id: string) => db.projects.findById(id))
+```
+
+### `.invalidate(key, ...args)`
+
+Invalidate a specific cached result by function key and arguments.
+
+### `.invalidateAll(...keys)`
+
+Invalidate all cached results for the given function key(s).
+
+### `.invalidateTag(...tags)`
+
+Invalidate all cached results tagged with the given tag(s).
+
+### `.withScope(scope)`
+
+Return a scoped view of the cache. All reads, writes, and invalidations are isolated to the given scope.
+
+### `.clear()`
+
+Clear all entries in the current scope.
+
+### `.reset()`
+
+Clear all data from the cache backend(s).
+
+## Utility Exports
+
+### `resetAllCaches()`
+
+Reset all cache instances created in the current process.
+
+### `withCachingDisabled(fn)`
+
+Execute a function with caching disabled. The function executes normally but results are not stored.
+
+### `createCachingDisabledScope()`
+
+Returns an imperative `{ disable(), enable() }` handle for disabling caching across async boundaries.

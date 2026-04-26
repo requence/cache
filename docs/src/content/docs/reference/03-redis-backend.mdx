@@ -1,0 +1,72 @@
+---
+title: Redis Backend
+description: API reference for the Redis cache backend.
+---
+
+## Import
+
+```typescript
+import createRedisBackend from '@requence/cache/redis'
+```
+
+## Signature
+
+```typescript
+function createRedisBackend(options: RedisBackendOptions): RedisBackend
+```
+
+## Options
+
+```typescript
+interface RedisBackendOptions {
+  prefix?: string    // Key prefix. Default: 'cache'
+  url?: string       // Redis connection URL
+  ttl?: number       // Time-to-live in ms. Default: 0 (infinite)
+  lockTTL?: number   // Lock timeout in ms. Default: 10000
+  database?: number  // Redis database number
+}
+```
+
+## Peer Dependencies
+
+The Redis backend requires two peer dependencies:
+
+```bash
+bun add ioredis superjson
+```
+
+- **ioredis** — Redis client for Node.js
+- **superjson** — Serialization that preserves `Date`, `Map`, `Set`, `BigInt`, etc.
+
+## How It Works
+
+### Serialization
+
+Values are serialized with `superjson.stringify()` before storage and deserialized with `superjson.parse()` on retrieval. This preserves rich JavaScript types that `JSON.stringify()` would lose.
+
+### Lock Coordination
+
+When a cache miss occurs, the Redis backend sets a lock key (`PX` expiry) to prevent thundering herd. Other processes waiting for the same key subscribe to a Redis Pub/Sub channel and wait for the `DONE` or `ERROR` signal.
+
+### Duplicate Detection
+
+Each Redis backend instance registers its `(url, database, prefix)` combination. Creating a second backend with the same combination throws an error to prevent data corruption.
+
+## Usage
+
+```typescript
+import { createCache } from '@requence/cache'
+import createRedisBackend from '@requence/cache/redis'
+
+const cache = createCache({
+  memoryTTL: 5_000,
+  backend: createRedisBackend({
+    url: process.env.REDIS_URL,
+    prefix: 'myapp',
+    ttl: 300_000,
+  }),
+})
+  .define('getUser', async (id: string) => {
+    return db.users.findById(id)
+  })
+```
