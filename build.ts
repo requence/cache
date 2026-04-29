@@ -1,4 +1,4 @@
-import { readdir, rm, mkdir } from 'node:fs/promises'
+import { mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const SRC = './src'
@@ -10,7 +10,9 @@ async function collectEntrypoints(dir: string): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const fullPath = join(dir, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name === 'tests') continue
+      if (entry.name === 'tests') {
+        continue
+      }
       entries.push(...(await collectEntrypoints(fullPath)))
     } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
       entries.push(fullPath)
@@ -33,11 +35,7 @@ const result = await Bun.build({
   format: 'esm',
   splitting: true,
   sourcemap: 'external',
-  external: [
-    'ioredis',
-    'superjson',
-    'node-object-hash',
-  ],
+  external: ['ioredis', 'superjson', 'node-object-hash'],
 })
 
 if (!result.success) {

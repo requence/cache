@@ -12,8 +12,9 @@
     "emitDeclarationOnly": true,
     "strict": true,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["bun", "node"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts"]
+  "include": ["src", "build.ts"],
+  "exclude": ["node_modules", "dist"]
 }
