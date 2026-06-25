@@ -1,6 +1,6 @@
 {
   "name": "@requence/cache",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tag-based function caching with pluggable backends — memory, Redis, or both",
   "type": "module",
   "sideEffects": false,
