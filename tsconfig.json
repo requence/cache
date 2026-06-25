@@ -7,7 +7,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
     "allowImportingTsExtensions": true,
     "emitDeclarationOnly": true,
     "strict": true,

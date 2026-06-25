@@ -1,39 +1,22 @@
-import { mkdir, readdir, rm } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, rm } from 'node:fs/promises'
 
 const SRC = './src'
 const OUT = './dist'
-
-// Collect all .ts source files (exclude tests)
-async function collectEntrypoints(dir: string): Promise<string[]> {
-  const entries: string[] = []
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const fullPath = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === 'tests') {
-        continue
-      }
-      entries.push(...(await collectEntrypoints(fullPath)))
-    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
-      entries.push(fullPath)
-    }
-  }
-  return entries
-}
 
 // Clean dist
 await rm(OUT, { recursive: true, force: true })
 await mkdir(OUT, { recursive: true })
 
-const entrypoints = await collectEntrypoints(SRC)
-
 const result = await Bun.build({
-  entrypoints,
+  entrypoints: [
+    `${SRC}/index.ts`,
+    `${SRC}/backends/RedisBackend.ts`,
+  ],
   outdir: OUT,
   root: SRC,
   target: 'node',
   format: 'esm',
-  splitting: true,
+  splitting: false,
   sourcemap: 'external',
   external: ['ioredis', 'superjson', 'node-object-hash'],
 })
