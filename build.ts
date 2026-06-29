@@ -30,7 +30,7 @@ if (!result.success) {
 }
 
 // Generate .d.ts files via tsc
-const tsc = Bun.spawn(['bunx', 'tsc'], {
+const tsc = Bun.spawn(['bunx', 'tsc', '--project', 'tsconfig.build.json'], {
   stdout: 'inherit',
   stderr: 'inherit',
 })
