@@ -1,7 +1,11 @@
 import { Redis } from 'ioredis'
 import superjson from 'superjson'
 
-import type { BackendCollectionResult, CacheBackend } from './type.ts'
+import type {
+  BackendCollectionResult,
+  CacheBackend,
+  RemoteInvalidation,
+} from './type.ts'
 
 const SEPARATOR = ':::'
 
@@ -25,6 +29,10 @@ export class RedisBackend implements CacheBackend {
   private lockTTL: number
   private ttl: number
   private pendingValues = new Map<string, PromiseWithResolvers<void>>()
+  private readonly instanceId = crypto.randomUUID()
+  private readonly invalidationListeners = new Set<
+    (invalidation: RemoteInvalidation) => void
+  >()
 
   constructor(options: RedisBackendOptions) {
     const redisBackendKey = [options.url, options.database, options.prefix]
@@ -51,6 +59,23 @@ export class RedisBackend implements CacheBackend {
   private setupSubscription(url?: string, db?: number) {
     const subRedis = url ? new Redis(url, { db }) : new Redis({ db })
     subRedis.psubscribe(`${this.prefix}-channel:*`)
+    subRedis.subscribe(this.getInvalidationChannel())
+    subRedis.on('message', (channel, message: string) => {
+      if (channel !== this.getInvalidationChannel()) {
+        return
+      }
+      const { origin, invalidation } = JSON.parse(message) as {
+        origin: string
+        invalidation: RemoteInvalidation
+      }
+      // This process already applied its own invalidation locally.
+      if (origin === this.instanceId) {
+        return
+      }
+      for (const listener of this.invalidationListeners) {
+        listener(invalidation)
+      }
+    })
     subRedis.on(
       'pmessage',
       (_pattern, channel, message: 'PENDING' | 'ERROR' | 'DONE') => {
@@ -86,6 +111,28 @@ export class RedisBackend implements CacheBackend {
 
   private getLockKey(key: string, args: string) {
     return `${this.prefix}-lock:${key}:${args}`
+  }
+
+  private getInvalidationChannel() {
+    return `${this.prefix}-invalidation`
+  }
+
+  /**
+   * Tells every other process on this backend to drop the same entries from
+   * its memory layer. Called AFTER the Redis delete, so a process that misses
+   * its memory layer on the next read cannot find the old value in Redis.
+   * Published even when Redis held nothing: another process can still hold
+   * the entry in memory.
+   */
+  private async publishInvalidation(invalidation: RemoteInvalidation) {
+    await this.redis.publish(
+      this.getInvalidationChannel(),
+      JSON.stringify({ origin: this.instanceId, invalidation }),
+    )
+  }
+
+  onRemoteInvalidation(listener: (invalidation: RemoteInvalidation) => void) {
+    this.invalidationListeners.add(listener)
   }
 
   async get(key: string, args: string): Promise<any> {
@@ -213,33 +260,34 @@ export class RedisBackend implements CacheBackend {
       .del(this.getDataKey(key, args))
       .srem(this.getGroupKey(key), args)
       .exec()
+    await this.publishInvalidation({ type: 'args', key, args })
   }
 
   async invalidateKey(key: string) {
     const groupKey = this.getGroupKey(key)
     const allArgs = await this.redis.smembers(groupKey)
-    if (allArgs.length === 0) {
-      return
+    if (allArgs.length > 0) {
+      const dataKeys = allArgs.map((args) => this.getDataKey(key, args))
+      await this.redis.del(groupKey, ...dataKeys)
     }
-    const dataKeys = allArgs.map((args) => this.getDataKey(key, args))
-    this.redis.del(groupKey, ...dataKeys)
+    await this.publishInvalidation({ type: 'key', key })
   }
 
   async invalidateTag(tag: string) {
     const tagKey = this.getTagKey(tag)
     const members = await this.redis.smembers(tagKey)
-    if (members.length === 0) {
-      return
-    }
-    const pipeline = this.redis.pipeline()
-    for (const member of members) {
-      const [key, args] = member.split(SEPARATOR)
-      pipeline.del(this.getDataKey(key, args))
-      pipeline.srem(this.getGroupKey(key), args)
-    }
+    if (members.length > 0) {
+      const pipeline = this.redis.pipeline()
+      for (const member of members) {
+        const [key, args] = member.split(SEPARATOR)
+        pipeline.del(this.getDataKey(key, args))
+        pipeline.srem(this.getGroupKey(key), args)
+      }
 
-    pipeline.del(tagKey)
-    await pipeline.exec()
+      pipeline.del(tagKey)
+      await pipeline.exec()
+    }
+    await this.publishInvalidation({ type: 'tag', tag })
   }
 
   async reset() {
@@ -262,5 +310,6 @@ export class RedisBackend implements CacheBackend {
     } while (cursor !== '0')
 
     this.pendingValues.clear()
+    await this.publishInvalidation({ type: 'reset' })
   }
 }

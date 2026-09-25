@@ -182,15 +182,52 @@ export function createCache(options: CacheOptions = {}) {
     size: options.memorySize ?? 0,
   })
 
-  const backend = options.backend
-    ? new CombinedBackend(
-        Array.isArray(options.backend)
-          ? [memoryBackend, ...options.backend]
-          : [memoryBackend, options.backend],
-      )
-    : memoryBackend
+  const sharedBackends = options.backend
+    ? Array.isArray(options.backend)
+      ? options.backend
+      : [options.backend]
+    : []
+
+  const backend =
+    sharedBackends.length > 0
+      ? new CombinedBackend([memoryBackend, ...sharedBackends])
+      : memoryBackend
 
   knownBackends.add(backend)
+
+  // The memory layer is per process. An invalidation made in another process
+  // reaches the shared backend only, so without this the memory layer here
+  // keeps serving the old value until it is evicted.
+  const markPendingCallsInvalid = (tag: string) => {
+    pendingCalls.values().forEach((v) => v.invalidatedTags.add(tag))
+  }
+  for (const sharedBackend of sharedBackends) {
+    sharedBackend.onRemoteInvalidation?.((invalidation) => {
+      switch (invalidation.type) {
+        case 'args': {
+          markPendingCallsInvalid(
+            keyWithArgsTag(invalidation.key, invalidation.args),
+          )
+          void memoryBackend.invalidateArgs(invalidation.key, invalidation.args)
+          break
+        }
+        case 'key': {
+          markPendingCallsInvalid(keyTag(invalidation.key))
+          void memoryBackend.invalidateKey(invalidation.key)
+          break
+        }
+        case 'tag': {
+          markPendingCallsInvalid(invalidation.tag)
+          void memoryBackend.invalidateTag(invalidation.tag)
+          break
+        }
+        case 'reset': {
+          void memoryBackend.reset()
+          break
+        }
+      }
+    })
+  }
 
   const buildCache = (getScopeKey = getDefaultScope) => {
     const cache = new Proxy(
@@ -254,7 +291,7 @@ export function createCache(options: CacheOptions = {}) {
                     pendingCalls
                       .values()
                       .forEach((v) => v.invalidatedTags.add(sanitizedTag))
-                    backend.invalidateTag(sanitizedTag)
+                    return backend.invalidateTag(sanitizedTag)
                   }),
                 )
               }
