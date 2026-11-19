@@ -19,6 +19,28 @@ interface RedisBackendOptions {
   database?: number
 }
 
+/**
+ * ioredis emits `error` on every reconnect attempt and prints each one with a
+ * stack trace when nothing listens. Report a lost connection once and its
+ * recovery once instead.
+ */
+function reportConnectionErrors(client: Redis, label: string) {
+  let lost = false
+  client.on('error', (error) => {
+    if (!lost) {
+      lost = true
+      console.error(`[cache] ${label} connection lost: ${error.message}`)
+    }
+  })
+  client.on('ready', () => {
+    if (lost) {
+      lost = false
+      console.info(`[cache] ${label} connection restored`)
+    }
+  })
+  return client
+}
+
 export default function createRedisBackend(options: RedisBackendOptions) {
   return new RedisBackend(options)
 }
@@ -46,10 +68,13 @@ export class RedisBackend implements CacheBackend {
     }
     knownRedisBackends.add(redisBackendKey)
 
-    this.redis = options.url
-      ? new Redis(options.url, { db: options.database })
-      : new Redis({ db: options.database })
     this.prefix = options.prefix ?? 'cache'
+    this.redis = reportConnectionErrors(
+      options.url
+        ? new Redis(options.url, { db: options.database })
+        : new Redis({ db: options.database }),
+      `"${this.prefix}"`,
+    )
     this.lockTTL = options.lockTTL ?? 10_000
     this.ttl = options.ttl ?? 0
 
@@ -57,9 +82,19 @@ export class RedisBackend implements CacheBackend {
   }
 
   private setupSubscription(url?: string, db?: number) {
-    const subRedis = url ? new Redis(url, { db }) : new Redis({ db })
-    subRedis.psubscribe(`${this.prefix}-channel:*`)
-    subRedis.subscribe(this.getInvalidationChannel())
+    const subRedis = reportConnectionErrors(
+      url ? new Redis(url, { db }) : new Redis({ db }),
+      `"${this.prefix}" subscriber`,
+    )
+    const reportSubscribeError = (error: Error) => {
+      console.error(
+        `[cache] "${this.prefix}" subscription failed: ${error.message}`,
+      )
+    }
+    subRedis.psubscribe(`${this.prefix}-channel:*`).catch(reportSubscribeError)
+    subRedis
+      .subscribe(this.getInvalidationChannel())
+      .catch(reportSubscribeError)
     subRedis.on('message', (channel, message: string) => {
       if (channel !== this.getInvalidationChannel()) {
         return
