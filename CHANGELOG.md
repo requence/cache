@@ -1,5 +1,12 @@
 # @requence/cache
 
+## 1.0.5
+
+### Patch Changes
+
+- f17ce4d: The Redis backend no longer floods the log while Redis is unreachable. Its two connections now each print one line when the connection is lost and one when it is back. Before, ioredis printed an "Unhandled error event" with a stack trace on every reconnect attempt, for every cache. A failed subscribe is now reported instead of becoming an unhandled rejection.
+- cf827b2: A process that starts while Redis is down for longer than about ten seconds now gets invalidations from other processes once Redis is back. Before, its subscription gave up after 20 retries and was never made again, so the process served stale values until it was restarted. The subscriber connection now waits for Redis.
+
 ## 1.0.4
 
 ### Patch Changes
