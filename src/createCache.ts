@@ -391,11 +391,17 @@ export function createCache(options: CacheOptions = {}) {
                 )
 
                 if (!isDisabled()) {
-                  await backend.set(
-                    key,
-                    hashedArgs,
-                    combinedResult.catch(() => null),
-                  )
+                  try {
+                    await backend.set(
+                      key,
+                      hashedArgs,
+                      combinedResult.catch(() => null),
+                    )
+                  } catch {
+                    // A failed store must not fail the call, and it must
+                    // not skip `pending.resolve()`: every later call for
+                    // this key awaits `pending` first and would hang forever.
+                  }
                 }
                 pending.resolve()
 

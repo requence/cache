@@ -3,6 +3,7 @@ import { setTimeout } from 'node:timers/promises'
 import { expect, it } from 'bun:test'
 
 import { MemoryBackend } from './backends/MemoryBackend.ts'
+import type { CacheBackend } from './backends/type.ts'
 import {
   addCacheTag,
   createCache,
@@ -510,4 +511,57 @@ it('can disable cache in deep function', async () => {
   await cache.upper(10)
   await cache.upper(10)
   expect(called).toBe(3)
+})
+
+function failingBackend() {
+  const state = { failing: true }
+  const backend: CacheBackend = {
+    async get() {
+      if (state.failing) {
+        throw new Error('backend down')
+      }
+      return undefined
+    },
+    async getTags() {
+      return []
+    },
+    async set(_key, _args, collectionResult) {
+      if (state.failing) {
+        throw new Error('backend down')
+      }
+      await collectionResult
+    },
+    async invalidateArgs() {},
+    async invalidateKey() {},
+    async invalidateTag() {},
+    async reset() {},
+  }
+  return { backend, state }
+}
+
+it('returns the value when the backend fails to store it', async () => {
+  const { backend } = failingBackend()
+  const cache = createCache({ backend }).define(
+    'add1',
+    async (base: number) => base + 1,
+  )
+
+  expect(await cache.add1(10)).toBe(11)
+})
+
+it('serves a key again after the backend failed to store it', async () => {
+  const { backend, state } = failingBackend()
+  const cache = createCache({ backend }).define(
+    'add1',
+    async (base: number) => base + 1,
+  )
+
+  await cache.add1(10)
+  state.failing = false
+
+  const result = await Promise.race([
+    cache.add1(10),
+    setTimeout(1000).then(() => 'timed out'),
+  ])
+  expect(result).toBe(11)
 })
