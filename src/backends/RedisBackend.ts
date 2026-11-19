@@ -82,8 +82,11 @@ export class RedisBackend implements CacheBackend {
   }
 
   private setupSubscription(url?: string, db?: number) {
+    // A subscribe that gives up while Redis is unreachable is never re-sent
+    // after the reconnect, so this connection waits for Redis instead.
+    const options = { db, maxRetriesPerRequest: null }
     const subRedis = reportConnectionErrors(
-      url ? new Redis(url, { db }) : new Redis({ db }),
+      url ? new Redis(url, options) : new Redis(options),
       `"${this.prefix}" subscriber`,
     )
     const reportSubscribeError = (error: Error) => {
